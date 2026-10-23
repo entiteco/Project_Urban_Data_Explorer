@@ -48,13 +48,13 @@ Ensure you have the following structure and files in place:
 
 ### Launching the Pipeline
 
-1.  Start the API (follow the instructions in the API's `README`).
-2.  Open a terminal and run:
+1. Start the API (follow the instructions in the API's `README`).
+2. Open a terminal and run:
 
-    ```bash
-    cd transform/filter
-    python pipeline_filter.py
-    ```
+   ```bash
+   cd transform/filter
+   python pipeline_filter.py
+   ```
 
 ### 🏁 Results
 
@@ -82,13 +82,13 @@ Ensure you have the following structure and files in place:
 
 ### Launching the Pipeline
 
-1.  Start the API (follow the instructions in the API's `README`).
-2.  Open a terminal and run:
+1. Start the API (follow the instructions in the API's `README`).
+2. Open a terminal and run:
 
-    ```bash
-    cd transform/agregation
-    python pipeline_agregation.py
-    ```
+   ```bash
+   cd transform/agregation
+   python pipeline_agregation.py
+   ```
 
 ### 🏁 Results
 
