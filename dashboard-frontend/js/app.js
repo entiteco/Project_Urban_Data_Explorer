@@ -3,8 +3,52 @@ document.addEventListener("DOMContentLoaded", () => {
   // 1. CONFIGURATION & SÉLECTEURS
   // ============================================================
 
-  const API_URL = "http://localhost:5000/api";
-  const API_KEY = "APIKEY-VIEWER-67890";
+  // mode "api"    : appels à l'API Flask locale (avec en-tête X-API-KEY)
+  // mode "static" : lecture des JSON figés par export_static_data.py (portfolio / Vercel)
+  // Surchargeable en définissant window.URBAN_DATA_CONFIG avant le chargement de app.js.
+  const CONFIG = Object.assign(
+    {
+      mode: "api",
+      apiUrl: "http://localhost:5000/api",
+      apiKey: "APIKEY-VIEWER-67890",
+      dataPath: "data",
+    },
+    window.URBAN_DATA_CONFIG || {}
+  );
+
+  // Endpoint API -> fichier JSON statique équivalent
+  const STATIC_FILES = {
+    "get-land-value": "land_value.json",
+    "get-social-housing": "social_housing.json",
+    "get-tree": "trees.json",
+    "get-tree-number": "trees_count.json",
+    "get-toilet-by-a": "toilets.json",
+    "get-number-station": "stations.json",
+    "get-type-ratio-station": "stations_by_type.json",
+    "get-stations-points": "stations_points.json",
+  };
+
+  // Ne lève jamais d'exception : en cas d'erreur réseau / HTTP, renvoie un jeu vide
+  // pour que la carte et les autres indicateurs continuent de fonctionner.
+  async function apiFetch(endpoint) {
+    const isStatic = CONFIG.mode === "static";
+    const url = isStatic
+      ? `${CONFIG.dataPath}/${STATIC_FILES[endpoint]}`
+      : `${CONFIG.apiUrl}/${endpoint}`;
+    const opts = isStatic ? {} : { headers: { "X-API-KEY": CONFIG.apiKey } };
+    try {
+      const r = await fetch(url, opts);
+      if (!r.ok) {
+        const body = await r.text();
+        console.error(`[${r.status}] ${url} : ${body.slice(0, 200)}`);
+        return { data: [] };
+      }
+      return await r.json();
+    } catch (e) {
+      console.error(url, e);
+      return { data: [] };
+    }
+  }
 
   const datasetSelector = document.getElementById("dataset-selector");
 
@@ -88,7 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
   map.on("load", async () => {
     try {
       // GeoJSON
-      const response = await fetch("data/arrondissements.geojson");
+      const response = await fetch(`${CONFIG.dataPath}/arrondissements.geojson`);
       if (!response.ok) throw new Error("GeoJSON introuvable");
       geojsonData = await response.json();
 
@@ -171,21 +215,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   async function cacheAllAPIData() {
-    const opts = { headers: { "X-API-KEY": API_KEY } };
-    const safeFetch = async (url) => {
-      try {
-        const r = await fetch(url, opts);
-        return await r.json();
-      } catch (e) {
-        console.error(url, e);
-        return { data: [] };
-      }
-    };
-
     console.log("Chargement données...");
 
     // A. Stations
-    const resArr = await safeFetch(`${API_URL}/get-number-station`);
+    const resArr = await apiFetch("get-number-station");
     dataCache.set(
       "arrets_count_total",
       await normalizeData(
@@ -197,14 +230,14 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     // B. Toilettes
-    const resToil = await safeFetch(`${API_URL}/get-toilet-by-a`);
+    const resToil = await apiFetch("get-toilet-by-a");
     dataCache.set(
       "toilettes_count",
       await normalizeData(resToil, "arrondissement", "nombre", "toilettes")
     );
 
     // C. Arbres
-    const resTreeCount = await safeFetch(`${API_URL}/get-tree-number`);
+    const resTreeCount = await apiFetch("get-tree-number");
     dataCache.set(
       "arbres_count",
       await normalizeData(
@@ -214,7 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "arbres"
       )
     );
-    const resTreePoints = await safeFetch(`${API_URL}/get-tree`);
+    const resTreePoints = await apiFetch("get-tree");
     let rawTreePoints = Array.isArray(resTreePoints)
       ? resTreePoints
       : resTreePoints.data || [];
@@ -230,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // D. Logements
-    const resLog = await safeFetch(`${API_URL}/get-social-housing`);
+    const resLog = await apiFetch("get-social-housing");
     const logData = Array.isArray(resLog) ? resLog : resLog.data || [];
     const logMap = new Map();
     logData.forEach((d) => {
@@ -249,7 +282,7 @@ document.addEventListener("DOMContentLoaded", () => {
     dataCache.set("logements_map", logMap);
 
     // E. Transports Détail
-    const resRatio = await safeFetch(`${API_URL}/get-type-ratio-station`);
+    const resRatio = await apiFetch("get-type-ratio-station");
     const ratioData = Array.isArray(resRatio) ? resRatio : resRatio.data || [];
     dataCache.set("transports_ratio_raw", ratioData);
     ["bus", "metro", "tram", "rail"].forEach((t) => {
@@ -265,7 +298,7 @@ document.addEventListener("DOMContentLoaded", () => {
       dataCache.set(`arrets_${t}`, tMap);
     });
 
-    const resPoints = await safeFetch(`${API_URL}/get-stations-points`);
+    const resPoints = await apiFetch("get-stations-points");
     transportPointsData = Array.isArray(resPoints)
       ? resPoints
       : resPoints.data || [];
@@ -286,7 +319,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // --- F. VALEUR FONCIERE ---
-    const resLand = await safeFetch(`${API_URL}/get-land-value`);
+    const resLand = await apiFetch("get-land-value");
     const landData = Array.isArray(resLand) ? resLand : resLand.data || [];
 
     dataCache.set("land_value_raw", landData);
